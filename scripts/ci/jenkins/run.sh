@@ -39,7 +39,8 @@ $RBENV_EXEC bundle exec rspec \
   spec/integration/codesign_spec.rb \
   spec/integration/core_spec.rb \
   spec/integration/simctl_spec.rb \
-  spec/integration/device_agent/client_spec.rb
+  spec/integration/device_agent/client_spec.rb \
+  spec/integration/tcc/tcc_spec.rb
 
 # CLI tests
 
@@ -57,4 +58,7 @@ execute "$RBENV_EXEC bundle exec run-loop instruments help"
 execute "$RBENV_EXEC bundle exec run-loop simctl help"
 execute "$RBENV_EXEC bundle exec run-loop codesign help"
 execute "$RBENV_EXEC bundle exec run-loop codesign info spec/resources/CalSmoke.ipa"
+execute "$RBENV_EXEC bundle exec run-loop tcc help"
+execute "$RBENV_EXEC bundle exec run-loop tcc services"
+execute "$RBENV_EXEC bundle exec run-loop tcc allow --app spec/resources/CalSmoke.app"
 
