@@ -13,7 +13,7 @@ module RunLoop
       include RunLoop::Encoding
 
       require "run_loop/cache"
-      require "run_loop/dylib_injector"
+      require "run_loop/lldb_dylib_injector"
 
       class HTTPError < RuntimeError; end
 
@@ -58,7 +58,7 @@ module RunLoop
         # constant CBX_DEFAULT_SEND_STRING_FREQUENCY which is 60.  _Decrease_
         # this value if you are timing out typing strings.
         :characters_per_second => 12,
-        
+
         # The number of attempts for relaunch DeviceAgent
         # when health check is failed
         :device_agent_launch_retries => 3
@@ -101,10 +101,39 @@ module RunLoop
         app = app_details[:app]
         bundle_id = app_details[:bundle_id]
 
-        # process name and dylib path
-        dylib_injection_details = Client.details_for_dylib_injection(device,
-                                                                     options,
-                                                                     app_details)
+        aut_args = options.fetch(:args, [])
+        aut_env = options.fetch(:env, {})
+
+        if !aut_args.include?(AUT_LAUNCHED_BY_RUN_LOOP_ARG)
+          aut_args << AUT_LAUNCHED_BY_RUN_LOOP_ARG
+        end
+
+        # If INJECT_CALABASH_DYLIB points to a dylib and your app is linked with
+        # calabash, then the dylib will be copied into your app and the app's
+        # launch environment will be configured to load the dylib at runtime.
+        #
+        # The same is true if your app has an embedded Calabash dylib that is
+        # loaded at runtime (a rare case).
+        #
+        # In either case, the linked or the embedded LPServer will _not be
+        # loaded_.  Instead the new dylib will be loaded.
+        #
+        # If your application is _not_ linked with Calabash, then the latest
+        # LPServer dylib will be downloaded, copied into your app, and the
+        # app's launch environment will be configured to load the dylib at
+        # runtime.
+        if !RunLoop::Environment.xtc?
+          RunLoop::RuntimeDylibInjector.new(app, aut_env).maybe_perform_injection!
+        end
+
+        if aut_env["DYLD_INSERT_LIBRARIES"]
+          RunLoop.log_debug("Detected dylib injection via DYLD_INSERT_LIBRARIES: skipping lldb dylib injection")
+          dylib_injection_details = nil
+        else
+          dylib_injection_details = Client.details_for_lldb_dylib_injection(device,
+                                                                            options,
+                                                                            app_details)
+        end
 
         default_options = {
             :xcode => xcode
@@ -167,13 +196,6 @@ module RunLoop
         device_agent_launch_retries = options.fetch(:device_agent_launch_retries,
                                                    DEFAULTS[:device_agent_launch_retries])
 
-        aut_args = options.fetch(:args, [])
-        aut_env = options.fetch(:env, {})
-
-        if !aut_args.include?(AUT_LAUNCHED_BY_RUN_LOOP_ARG)
-          aut_args << AUT_LAUNCHED_BY_RUN_LOOP_ARG
-        end
-
         launcher_options = {
             code_sign_identity: code_sign_identity,
             provisioning_profile: provisioning_profile,
@@ -232,8 +254,8 @@ module RunLoop
         end
       end
 
-      def self.details_for_dylib_injection(device, options, app_details)
-        dylib_path = RunLoop::DylibInjector.dylib_path_from_options(options)
+      def self.details_for_lldb_dylib_injection(device, options, app_details)
+        dylib_path = RunLoop::LldbDylibInjector.dylib_path_from_options(options)
 
         return nil if !dylib_path
 
@@ -1492,7 +1514,7 @@ If the body empty, the DeviceAgent has probably crashed.
 
         start = Time.now
         RunLoop.log_debug("Waiting for DeviceAgent to launch...")
-        
+
         begin
           retries ||= 0
           @launcher_pid = cbx_launcher.launch(options)
@@ -1589,7 +1611,7 @@ Please install it.
           if dylib_injection_details
             process_name = dylib_injection_details[:process_name]
             dylib_path = dylib_injection_details[:dylib_path]
-            injector = RunLoop::DylibInjector.new(process_name, dylib_path)
+            injector = RunLoop::LldbDylibInjector.new(process_name, dylib_path)
             injector.retriable_inject_dylib
           end
         rescue => e

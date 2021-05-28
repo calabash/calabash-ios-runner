@@ -90,17 +90,17 @@ describe RunLoop::App do
     subject { RunLoop::App.valid?(path) }
 
     context "path does not exist" do
-      let (:path) { "/path/does/not/exist" }
+      let(:path) { "/path/does/not/exist" }
       it { is_expected.to be_falsey }
     end
 
     context "path is not a directory" do
-      let (:path) { FileUtils.touch(File.join(Dir.mktmpdir, "foo.app")).first }
+      let(:path) { FileUtils.touch(File.join(Dir.mktmpdir, "foo.app")).first }
       it { is_expected.to be_falsey }
     end
 
     context "path does not end in .app" do
-      let (:path) { FileUtils.mkdir_p(File.join(Dir.mktmpdir, "foo.bar")).first }
+      let(:path) { FileUtils.mkdir_p(File.join(Dir.mktmpdir, "foo.bar")).first }
       it { is_expected.to be_falsey }
     end
 
@@ -243,7 +243,7 @@ describe RunLoop::App do
     it { should be_kind_of(RunLoop::Version) }
 
     context 'should be nil when' do
-      let (:path) { Resources.shared.app_bundle_path }
+      let (:path){ Resources.shared.app_bundle_path }
       it 'calabash server not included in app' do
         app = RunLoop::App.new(path)
         expect(app.calabash_server_version).to be_nil
@@ -262,6 +262,16 @@ describe RunLoop::App do
       app = RunLoop::App.new(Resources.shared.app_bundle_path)
       expect(app.calabash_server_id).to be == nil
     end
+  end
+
+  context "#calabash_dylib_relative_path" do
+    it "raises an error if more than on calabash dylib exists"
+    it "raises an error if no calabash dylib exists"
+    it "returns value for appending to DYLD_INSERT_LIBRARIES value"
+  end
+
+  context "#configure_app_and_env_for_calabash_dylib_injection!" do
+
   end
 
   describe "#marketing_version" do
